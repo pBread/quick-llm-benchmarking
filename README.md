@@ -1,1 +1,1 @@
-# quick-llm-benchmarking
+# Quick LLM Benchmarking

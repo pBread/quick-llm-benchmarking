@@ -1,0 +1,9 @@
+{
+  "author": "https://github.com/pBread",
+  "name": "quick-llm-benchmarking",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}
