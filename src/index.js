@@ -1,1 +1,2 @@
-console.log("hello world");
+import "dotenv/config";
+import OpenAI from "openai";
