@@ -5,50 +5,53 @@ import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
 import * as ss from "simple-statistics";
 import { table } from "table";
+import { Agent, fetch as undiciFetch } from "undici";
 
-const ITERATIONS = 1;
+const ITERATIONS = 25;
 
 const benchmarks: Benchmark[] = [
-  //   {
-  //     id: "openai-completions-gpt-4.1",
-  //     fn: composeOpenAICompletions({ model: "gpt-4.1" }),
-  //   },
   {
     id: "openai-completions-gpt-4.1-mini",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
   },
+
   {
-    id: "openai-response-gpt-4.1-mini",
+    id: "openai-response-gpt-4.1-mini-keepalive",
     fn: composeOpenAIResponse({ model: "gpt-4.1-mini" }),
   },
 ];
 
+const now = () => performance.now();
+
 class Recorder {
   constructor(public prompt: string) {}
 
-  beginAt?: Date;
-  endAt?: Date;
+  startTime: Date;
+
+  beginAt?: number;
+  endAt?: number;
   tokens: TokenItem[] = [];
 
-  firstTokenAt?: Date;
-  lastTokenAt?: Date;
+  firstTokenAt?: number;
+  lastTokenAt?: number;
 
   get ttft() {
     return this.firstTokenAt && this.beginAt
-      ? this.firstTokenAt.getTime() - this.beginAt.getTime()
+      ? this.firstTokenAt - this.beginAt
       : NaN;
   }
   get tt_complete() {
     return this.lastTokenAt && this.beginAt
-      ? this.lastTokenAt.getTime() - this.beginAt.getTime()
+      ? this.lastTokenAt - this.beginAt
       : NaN;
   }
 
   begin = () => {
-    this.beginAt = new Date();
+    this.beginAt = now();
+    this.startTime = new Date();
   };
   end = () => {
-    this.endAt = new Date();
+    this.endAt = now();
     if (!this.tokens.length) return;
     this.lastTokenAt = this.tokens[this.tokens.length - 1].createdAt;
   };
@@ -56,8 +59,8 @@ class Recorder {
   addToken = (token: string | undefined | null) => {
     if (!token) return;
 
-    if (!this.firstTokenAt) this.firstTokenAt = new Date();
-    this.tokens.push({ content: token, createdAt: new Date() });
+    if (!this.firstTokenAt) this.firstTokenAt = now();
+    this.tokens.push({ content: token, createdAt: now() });
   };
 }
 
@@ -148,7 +151,7 @@ type Executor = (rec: Recorder, prompt: string) => Promise<void>;
 
 interface TokenItem {
   content: string;
-  createdAt: Date;
+  createdAt: number;
 }
 
 // ========================================
@@ -157,9 +160,9 @@ interface TokenItem {
 function composeOpenAICompletions(
   config: Omit<ChatCompletionCreateParamsStreaming, "messages" | "stream">,
 ): Executor {
-  const openAICompletions: Executor = async (rec, prompt) => {
-    const client = new OpenAI();
+  const client = makeOpenAIClient();
 
+  const openAICompletions: Executor = async (rec, prompt) => {
     const stream = await client.chat.completions.create({
       ...config,
       stream: true,
@@ -177,9 +180,9 @@ function composeOpenAICompletions(
 function composeOpenAIResponse(
   config: Omit<ResponseCreateParamsStreaming, "messages" | "stream">,
 ): Executor {
-  const openAIResponse: Executor = async (rec, prompt) => {
-    const client = new OpenAI();
+  const client = makeOpenAIClient();
 
+  const openAIResponse: Executor = async (rec, prompt) => {
     const stream = await client.responses.create({
       ...config,
       stream: true,
@@ -187,19 +190,22 @@ function composeOpenAIResponse(
     });
 
     for await (const chunk of stream) {
-      if (
-        chunk.type === "response.output_item.added" &&
-        chunk.item.type === "message"
-      ) {
-        chunk.item.content
-          .filter((content) => content.type === "output_text") // filter refusals
-          .forEach((content) => rec.addToken(content.text));
-      }
-
       if (chunk.type === "response.output_text.delta")
         rec.addToken(chunk.delta);
     }
   };
 
   return openAIResponse;
+}
+
+function makeOpenAIClient() {
+  const dispatcher = new Agent();
+  const typedFetch: typeof fetch = undiciFetch as unknown as typeof fetch;
+
+  const client = new OpenAI({
+    maxRetries: 0,
+    fetch: (url, opts) => typedFetch(url, { ...opts, dispatcher }),
+  });
+
+  return client;
 }
