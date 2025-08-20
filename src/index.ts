@@ -3,7 +3,7 @@ import "dotenv/config";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
-import ss from "simple-statistics";
+import * as ss from "simple-statistics";
 
 const benchmarks: Benchmark[] = [
   {
@@ -72,6 +72,27 @@ async function main() {
       console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
     }
   }
+
+  const rows = Array.from(run.entries()).map(([benchmarkId, recorders]) => {
+    const ttfts = Array.from(recorders)
+      .map((r) => r.ttft)
+      .filter((n) => Number.isFinite(n));
+
+    const mean = ttfts.length ? ss.mean(ttfts) : NaN;
+    const min = ttfts.length ? ss.min(ttfts) : NaN;
+    const max = ttfts.length ? ss.max(ttfts) : NaN;
+
+    return {
+      benchmark: benchmarkId,
+      runs: ttfts.length,
+      ttft_mean_ms: Math.round(mean),
+      ttft_min_ms: Math.round(min),
+      ttft_max_ms: Math.round(max),
+    };
+  });
+
+  console.log("\nTTFT summary (ms) per benchmark");
+  console.table(rows);
 }
 
 main();
