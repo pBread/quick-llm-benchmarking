@@ -6,20 +6,16 @@ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/r
 
 const benchmarks: Benchmark[] = [
   {
-    id: "openai-completions-gpt-4",
-    fn: composeOpenAICompletions({ model: "gpt-4" }),
+    id: "openai-completions-gpt-4.1",
+    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
   },
   {
-    id: "openai-completions-gpt-4-turbo",
-    fn: composeOpenAICompletions({ model: "gpt-4-turbo" }),
+    id: "openai-completions-gpt-4.1-mini",
+    fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
   },
   {
-    id: "openai-response-gpt-4.1",
-    fn: composeOpenAICompletions({ model: "gpt-4" }),
-  },
-  {
-    id: "openai-response-gpt-4-turbo",
-    fn: composeOpenAIResponse({ model: "gpt-4.1" }),
+    id: "openai-completions-gpt-4.1-nano",
+    fn: composeOpenAICompletions({ model: "gpt-4.1-nano" }),
   },
 ];
 
@@ -50,25 +46,30 @@ class Recorder {
   };
 }
 
-(async () => {
+async function main() {
   const results = [];
 
-  const prompts = Array.from({ length: 10 }).map(makePrompt);
+  const run: Map<string, Set<Recorder>> = new Map();
 
-  for await (const bm of benchmarks) {
-    console.log(`${bm.id} starting`);
+  const prompts = Array.from({ length: 3 }).map(makePrompt);
 
-    for (const prompt of prompts) {
+  for await (const prompt of prompts) {
+    console.log(prompt);
+    for await (const bm of benchmarks) {
+      if (!run.has(bm.id)) run.set(bm.id, new Set());
+
       const rec = new Recorder(prompt);
+      rec.begin();
+      await bm.fn(rec, rec.prompt);
+      rec.end();
 
-      // await bm.fn(rec, rec.prompt);
-      results.push(rec);
-      // console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
+      run.get(bm.id).add(rec);
+      console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
     }
   }
+}
 
-  console.log(JSON.stringify(results, null, 2));
-})();
+main();
 
 function makePrompt() {
   return `Can ${faker.animal.type()} eat ${faker.food.adjective()} ${faker.food.vegetable()}?`;
@@ -96,7 +97,7 @@ interface TokenItem {
 function composeOpenAICompletions(
   config: Omit<ChatCompletionCreateParamsStreaming, "messages" | "stream">,
 ): Executor {
-  return async (rec, prompt) => {
+  const openAICompletions: Executor = async (rec, prompt) => {
     const client = new OpenAI();
 
     const stream = await client.chat.completions.create({
@@ -105,23 +106,20 @@ function composeOpenAICompletions(
       messages: [{ role: "user", content: prompt }],
     });
 
-    rec.begin();
-
     for await (const chunk of stream) {
       rec.addToken(chunk.choices[0]?.delta?.content);
     }
-
-    rec.end();
   };
+
+  return openAICompletions;
 }
 
 function composeOpenAIResponse(
   config: Omit<ResponseCreateParamsStreaming, "messages" | "stream">,
 ): Executor {
-  return async (rec, prompt) => {
+  const openAIResponse: Executor = async (rec, prompt) => {
     const client = new OpenAI();
 
-    rec.begin();
     const stream = await client.responses.create({
       ...config,
       stream: true,
@@ -141,7 +139,7 @@ function composeOpenAIResponse(
       if (chunk.type === "response.output_text.delta")
         rec.addToken(chunk.delta);
     }
-
-    rec.end();
   };
+
+  return openAIResponse;
 }
