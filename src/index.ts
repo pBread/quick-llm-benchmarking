@@ -47,8 +47,6 @@ class Recorder {
 }
 
 async function main() {
-  const results = [];
-
   const run: Map<string, Set<Recorder>> = new Map();
 
   const prompts = Array.from({ length: 3 }).map(makePrompt);
