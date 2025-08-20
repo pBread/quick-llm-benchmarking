@@ -5,10 +5,6 @@ import prompts from "./prompts.js";
 
 const { OPENAI_API_KEY } = process.env;
 
-class Run {
-  constructor(id) {}
-}
-
 async function execute() {
   const result = await run();
 
