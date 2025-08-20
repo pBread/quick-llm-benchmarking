@@ -11,12 +11,11 @@ const ITERATIONS = 25;
 
 const benchmarks: Benchmark[] = [
   {
-    id: "openai-completions-gpt-4.1-mini",
+    id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
   },
-
   {
-    id: "openai-response-gpt-4.1-mini-keepalive",
+    id: "gpt-4.1-mini-response",
     fn: composeOpenAIResponse({ model: "gpt-4.1-mini" }),
   },
 ];
