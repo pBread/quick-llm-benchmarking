@@ -4,8 +4,9 @@ import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
 import * as ss from "simple-statistics";
+import { table } from "table";
 
-const ITERATIONS = 10;
+const ITERATIONS = 1;
 
 const benchmarks: Benchmark[] = [
   //   {
@@ -81,9 +82,21 @@ async function main() {
   }
 
   const rows = Array.from(run).map((entry) => aggregate(entry[0], entry[1]));
+  const data = [
+    ["Benchmark", "Count", "Mean (ms)", "Min (ms)", "Max (ms)", "SD (ms)"],
+    ...rows.map((r) => [
+      r.benchmark,
+      r.count,
+      r.ttft_mean_ms,
+      r.ttft_min_ms,
+      r.ttft_max_ms,
+      r.ttft_sd_ms,
+    ]),
+  ];
 
   console.log("\nTTFT summary (ms) per benchmark");
-  console.table(rows);
+  const output = table(data);
+  console.log(output);
 }
 
 main();
