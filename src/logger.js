@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLogger, format, transports } from "winston";
-import kebabCase from "lodash/kebabCase";
+import kebabCase from "lodash/kebabCase.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
