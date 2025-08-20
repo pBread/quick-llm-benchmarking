@@ -5,18 +5,20 @@ import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
 import * as ss from "simple-statistics";
 
+const ITERATIONS = 10;
+
 const benchmarks: Benchmark[] = [
-  {
-    id: "openai-completions-gpt-4.1",
-    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
-  },
+  //   {
+  //     id: "openai-completions-gpt-4.1",
+  //     fn: composeOpenAICompletions({ model: "gpt-4.1" }),
+  //   },
   {
     id: "openai-completions-gpt-4.1-mini",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
   },
   {
-    id: "openai-completions-gpt-4.1-nano",
-    fn: composeOpenAICompletions({ model: "gpt-4.1-nano" }),
+    id: "openai-response-gpt-4.1-mini",
+    fn: composeOpenAIResponse({ model: "gpt-4.1-mini" }),
   },
 ];
 
@@ -54,9 +56,9 @@ class Recorder {
 }
 
 async function main() {
-  const run: Map<string, Set<Recorder>> = new Map();
+  const run: RunMap = new Map();
 
-  const prompts = Array.from({ length: 3 }).map(makePrompt);
+  const prompts = Array.from({ length: ITERATIONS }).map(makePrompt);
 
   for await (const prompt of prompts) {
     console.log(prompt);
@@ -73,23 +75,7 @@ async function main() {
     }
   }
 
-  const rows = Array.from(run.entries()).map(([benchmarkId, recorders]) => {
-    const ttfts = Array.from(recorders)
-      .map((r) => r.ttft)
-      .filter((n) => Number.isFinite(n));
-
-    const mean = ttfts.length ? ss.mean(ttfts) : NaN;
-    const min = ttfts.length ? ss.min(ttfts) : NaN;
-    const max = ttfts.length ? ss.max(ttfts) : NaN;
-
-    return {
-      benchmark: benchmarkId,
-      runs: ttfts.length,
-      ttft_mean_ms: Math.round(mean),
-      ttft_min_ms: Math.round(min),
-      ttft_max_ms: Math.round(max),
-    };
-  });
+  const rows = Array.from(run).map((entry) => aggregate(entry[0], entry[1]));
 
   console.log("\nTTFT summary (ms) per benchmark");
   console.table(rows);
@@ -104,10 +90,28 @@ function makePrompt() {
 // ========================================
 // Aggregations
 // ========================================
+function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
+  const ttfts = Array.from(recorders)
+    .map((r) => r.ttft)
+    .filter((n) => Number.isFinite(n));
+
+  const mean = ttfts.length ? ss.mean(ttfts) : NaN;
+  const min = ttfts.length ? ss.min(ttfts) : NaN;
+  const max = ttfts.length ? ss.max(ttfts) : NaN;
+
+  return {
+    benchmark: benchmarkId,
+    count: ttfts.length,
+    ttft_mean_ms: Math.round(mean),
+    ttft_min_ms: Math.round(min),
+    ttft_max_ms: Math.round(max),
+  };
+}
 
 // ========================================
 // Types
 // ========================================
+type RunMap = Map<string, Set<Recorder>>;
 
 interface Benchmark {
   id: string;
