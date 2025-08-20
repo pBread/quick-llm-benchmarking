@@ -3,6 +3,7 @@ import "dotenv/config";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
+import ss from "simple-statistics";
 
 const benchmarks: Benchmark[] = [
   {
@@ -24,11 +25,16 @@ class Recorder {
 
   beginAt?: Date;
   endAt?: Date;
-  firstTokenAt?: Date;
   tokens: TokenItem[] = [];
+
+  firstTokenAt?: Date;
+  lastTokenAt?: Date;
 
   get ttft() {
     return this.firstTokenAt.getTime() - this.beginAt.getTime();
+  }
+  get tt_complete() {
+    return this.lastTokenAt.getTime() - this.beginAt.getTime();
   }
 
   begin = () => {
@@ -36,6 +42,7 @@ class Recorder {
   };
   end = () => {
     this.endAt = new Date();
+    this.lastTokenAt = this.tokens[this.tokens.length - 1].createdAt;
   };
 
   addToken = (token: string | undefined | null) => {
@@ -72,6 +79,10 @@ main();
 function makePrompt() {
   return `Can ${faker.animal.type()} eat ${faker.food.adjective()} ${faker.food.vegetable()}?`;
 }
+
+// ========================================
+// Aggregations
+// ========================================
 
 // ========================================
 // Types
