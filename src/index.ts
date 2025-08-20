@@ -7,7 +7,7 @@ import * as ss from "simple-statistics";
 import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 
-const ITERATIONS = 25;
+const ITERATIONS = 5;
 
 const benchmarks: Benchmark[] = [
   {
