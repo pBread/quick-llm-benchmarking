@@ -1,3 +1,4 @@
+import { faker } from "@faker-js/faker";
 import "dotenv/config";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
@@ -23,6 +24,8 @@ const benchmarks: Benchmark[] = [
 ];
 
 class Recorder {
+  constructor(public prompt: string) {}
+
   beginAt?: Date;
   endAt?: Date;
   firstTokenAt?: Date;
@@ -48,21 +51,28 @@ class Recorder {
 }
 
 (async () => {
-  const prompt = "Help me understand campbell's tomato soup";
-
   const results = [];
+
+  const prompts = Array.from({ length: 10 }).map(makePrompt);
 
   for await (const bm of benchmarks) {
     console.log(`${bm.id} starting`);
-    const rec = new Recorder();
-    await bm.fn(rec, prompt);
-    results.push(rec);
 
-    console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
+    for (const prompt of prompts) {
+      const rec = new Recorder(prompt);
+
+      // await bm.fn(rec, rec.prompt);
+      results.push(rec);
+      // console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
+    }
   }
 
   console.log(JSON.stringify(results, null, 2));
 })();
+
+function makePrompt() {
+  return `Can ${faker.animal.type()} eat ${faker.food.adjective()} ${faker.food.vegetable()}?`;
+}
 
 // ========================================
 // Types
