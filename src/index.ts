@@ -33,10 +33,14 @@ class Recorder {
   lastTokenAt?: Date;
 
   get ttft() {
-    return this.firstTokenAt.getTime() - this.beginAt.getTime();
+    return this.firstTokenAt && this.beginAt
+      ? this.firstTokenAt.getTime() - this.beginAt.getTime()
+      : NaN;
   }
   get tt_complete() {
-    return this.lastTokenAt.getTime() - this.beginAt.getTime();
+    return this.lastTokenAt && this.beginAt
+      ? this.lastTokenAt.getTime() - this.beginAt.getTime()
+      : NaN;
   }
 
   begin = () => {
@@ -44,6 +48,7 @@ class Recorder {
   };
   end = () => {
     this.endAt = new Date();
+    if (!this.tokens.length) return;
     this.lastTokenAt = this.tokens[this.tokens.length - 1].createdAt;
   };
 
@@ -95,16 +100,24 @@ function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
     .map((r) => r.ttft)
     .filter((n) => Number.isFinite(n));
 
-  const mean = ttfts.length ? ss.mean(ttfts) : NaN;
-  const min = ttfts.length ? ss.min(ttfts) : NaN;
-  const max = ttfts.length ? ss.max(ttfts) : NaN;
+  const n = ttfts.length;
+
+  const mean = n ? ss.mean(ttfts) : NaN;
+  const min = n ? ss.min(ttfts) : NaN;
+  const max = n ? ss.max(ttfts) : NaN;
+
+  // Sample standard deviation; undefined for n < 2 so guard it.
+  const sd = n > 1 ? ss.sampleStandardDeviation(ttfts) : NaN;
+
+  const format = (x: number) => (Number.isFinite(x) ? Math.round(x) : NaN);
 
   return {
     benchmark: benchmarkId,
-    count: ttfts.length,
-    ttft_mean_ms: Math.round(mean),
-    ttft_min_ms: Math.round(min),
-    ttft_max_ms: Math.round(max),
+    count: n,
+    ttft_mean_ms: format(mean),
+    ttft_min_ms: format(min),
+    ttft_max_ms: format(max),
+    ttft_sd_ms: format(sd),
   };
 }
 
