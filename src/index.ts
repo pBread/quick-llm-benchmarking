@@ -13,12 +13,12 @@ const benchmarks: Benchmark[] = [
     fn: composeOpenAICompletions({ model: "gpt-4-turbo" }),
   },
   {
-    id: "openai-response-gpt-4",
+    id: "openai-response-gpt-4.1",
     fn: composeOpenAICompletions({ model: "gpt-4" }),
   },
   {
     id: "openai-response-gpt-4-turbo",
-    fn: composeOpenAIResponse({ model: "gpt-4-turbo" }),
+    fn: composeOpenAIResponse({ model: "gpt-4.1" }),
   },
 ];
 
@@ -27,6 +27,10 @@ class Recorder {
   endAt?: Date;
   firstTokenAt?: Date;
   tokens: TokenItem[] = [];
+
+  get ttft() {
+    return this.firstTokenAt.getTime() - this.beginAt.getTime();
+  }
 
   begin = () => {
     this.beginAt = new Date();
@@ -44,15 +48,17 @@ class Recorder {
 }
 
 (async () => {
-  const prompt = "Tell me a joke";
+  const prompt = "Help me understand campbell's tomato soup";
 
   const results = [];
 
   for await (const bm of benchmarks) {
-    console.log("starting", bm.id);
+    console.log(`${bm.id} starting`);
     const rec = new Recorder();
     await bm.fn(rec, prompt);
     results.push(rec);
+
+    console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
   }
 
   console.log(JSON.stringify(results, null, 2));
