@@ -8,16 +8,21 @@ import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 
 const ITERATIONS = 5;
+const WARMUP = true;
 
 const benchmarks: Benchmark[] = [
   {
     id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
   },
-  {
-    id: "gpt-4.1-mini-response",
-    fn: composeOpenAIResponse({ model: "gpt-4.1-mini" }),
-  },
+  // {
+  //   id: "gpt-4o-mini-completions",
+  //   fn: composeOpenAICompletions({ model: "gpt-4o-mini" }),
+  // },
+  // {
+  //   id: "gpt-3.5-turbo-completions",
+  //   fn: composeOpenAICompletions({ model: "gpt-3.5-turbo" }),
+  // },
 ];
 
 const now = () => performance.now();
@@ -68,14 +73,21 @@ async function main() {
 
   const prompts = Array.from({ length: ITERATIONS }).map(makePrompt);
 
-  for await (const prompt of prompts) {
-    console.log(prompt);
-    for await (const bm of benchmarks) {
-      if (!run.has(bm.id)) run.set(bm.id, new Set());
+  for await (const bm of benchmarks) {
+    console.log(`starting ${bm.id}`);
 
+    if (WARMUP) {
+      console.log(`warmup started`);
+      const rec = new Recorder("Tell me a joke");
+      await bm.fn(rec);
+      console.log(`warmup complete`);
+    }
+
+    for await (const prompt of prompts) {
+      if (!run.has(bm.id)) run.set(bm.id, new Set());
       const rec = new Recorder(prompt);
       rec.begin();
-      await bm.fn(rec, rec.prompt);
+      await bm.fn(rec);
       rec.end();
 
       run.get(bm.id).add(rec);
@@ -146,7 +158,7 @@ interface Benchmark {
   fn: Executor;
 }
 
-type Executor = (rec: Recorder, prompt: string) => Promise<void>;
+type Executor = (rec: Recorder) => Promise<void>;
 
 interface TokenItem {
   content: string;
@@ -161,11 +173,11 @@ function composeOpenAICompletions(
 ): Executor {
   const client = makeOpenAIClient();
 
-  const openAICompletions: Executor = async (rec, prompt) => {
+  const openAICompletions: Executor = async (rec) => {
     const stream = await client.chat.completions.create({
       ...config,
       stream: true,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user", content: rec.prompt }],
     });
 
     for await (const chunk of stream) {
@@ -181,11 +193,11 @@ function composeOpenAIResponse(
 ): Executor {
   const client = makeOpenAIClient();
 
-  const openAIResponse: Executor = async (rec, prompt) => {
+  const openAIResponse: Executor = async (rec) => {
     const stream = await client.responses.create({
       ...config,
       stream: true,
-      input: [{ role: "user", content: prompt }],
+      input: [{ role: "user", content: rec.prompt }],
     });
 
     for await (const chunk of stream) {
@@ -198,7 +210,10 @@ function composeOpenAIResponse(
 }
 
 function makeOpenAIClient() {
-  const dispatcher = new Agent();
+  const dispatcher = new Agent({
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 30_000,
+  });
   const typedFetch: typeof fetch = undiciFetch as unknown as typeof fetch;
 
   const client = new OpenAI({
