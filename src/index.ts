@@ -6,6 +6,7 @@ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/r
 import * as ss from "simple-statistics";
 import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
+import ping from "ping";
 
 const ITERATIONS = 5;
 const WARMUP = true;
@@ -14,6 +15,7 @@ const benchmarks: Benchmark[] = [
   {
     id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
+    host: "api.openai.com",
   },
   // {
   //   id: "gpt-4o-mini-completions",
@@ -28,7 +30,7 @@ const benchmarks: Benchmark[] = [
 const now = () => performance.now();
 
 class Recorder {
-  constructor(public prompt: string) {}
+  constructor(public bm: Benchmark, public prompt: string) {}
 
   startTime: Date;
 
@@ -40,8 +42,12 @@ class Recorder {
   lastTokenAt?: number;
 
   get ttft() {
+    return this.ttft_w_network && this.ttft_w_network - this.pingMs;
+  }
+
+  get ttft_w_network() {
     return this.firstTokenAt && this.beginAt
-      ? this.firstTokenAt - this.beginAt
+      ? this.firstTokenAt - this.beginAt - this.pingMs
       : NaN;
   }
   get tt_complete() {
@@ -49,6 +55,21 @@ class Recorder {
       ? this.lastTokenAt - this.beginAt
       : NaN;
   }
+
+  pingMs = 0;
+  doPing = async () => {
+    try {
+      const res = await ping.promise.probe(this.bm.host, { timeout: 5 });
+      if (res.alive && res.time !== "unknown") this.pingMs = res.time;
+    } catch (error) {}
+
+    if (!this.pingMs)
+      console.warn(
+        `ping failed on (${this.bm.host}). network latency will be included in benchmark`,
+      );
+
+    return this.pingMs;
+  };
 
   begin = () => {
     this.beginAt = now();
@@ -78,20 +99,26 @@ async function main() {
 
     if (WARMUP) {
       console.log(`warmup started`);
-      const rec = new Recorder("Tell me a joke");
+      const rec = new Recorder(bm, "Tell me a joke");
       await bm.fn(rec);
       console.log(`warmup complete`);
     }
 
     for await (const prompt of prompts) {
       if (!run.has(bm.id)) run.set(bm.id, new Set());
-      const rec = new Recorder(prompt);
+      const rec = new Recorder(bm, prompt);
       rec.begin();
-      await bm.fn(rec);
+      await Promise.all([bm.fn(rec), rec.doPing()]);
       rec.end();
 
       run.get(bm.id).add(rec);
-      console.log(`${bm.id} end.`.padEnd(50, " ").concat(`ttft: ${rec.ttft}`));
+      console.log(
+        `${bm.id} end.`
+          .padEnd(50, " ")
+          .concat(
+            `ttft: ${rec.ttft}; ttft_w_network: ${rec.ttft_w_network}; pingMs: ${rec.pingMs}`,
+          ),
+      );
     }
   }
 
@@ -156,6 +183,7 @@ type RunMap = Map<string, Set<Recorder>>;
 interface Benchmark {
   id: string;
   fn: Executor;
+  host: string; // api host to remove local network latency
 }
 
 type Executor = (rec: Recorder) => Promise<void>;
@@ -222,4 +250,18 @@ function makeOpenAIClient() {
   });
 
   return client;
+}
+
+async function pingHost(host: string) {
+  try {
+    const res = await ping.promise.probe(host, { timeout: 5 });
+    if (res.alive && res.time !== "unknown") return res.time;
+    console.warn(
+      `host (${host}) did not respond to ping. network latency will be included in benchmark`,
+    );
+
+    return 0;
+  } catch (error) {
+    console.error("Ping failed:", error);
+  }
 }
