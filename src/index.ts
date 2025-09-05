@@ -201,10 +201,6 @@ function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
   };
 }
 
-function round(x: number) {
-  return Number.isFinite(x) ? Math.round(x) : NaN;
-}
-
 function fmt(x: number, digits = 1) {
   return Number.isFinite(x) ? x.toFixed(digits) : NaN;
 }
@@ -296,20 +292,6 @@ function makeOpenAIClient() {
   });
 
   return client;
-}
-
-async function pingHost(host: string) {
-  try {
-    const res = await ping.promise.probe(host, { timeout: 5 });
-    if (res.alive && res.time !== "unknown") return res.time;
-    console.warn(
-      `host (${host}) did not respond to ping. network latency will be included in benchmark`,
-    );
-
-    return 0;
-  } catch (error) {
-    console.error("Ping failed:", error);
-  }
 }
 
 // ========================================
