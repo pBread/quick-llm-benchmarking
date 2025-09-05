@@ -12,11 +12,11 @@ const ITERATIONS = 5;
 const WARMUP = true;
 
 const benchmarks: Benchmark[] = [
-  {
-    id: "gpt-4.1-completions",
-    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
-    host: "api.openai.com",
-  },
+  // {
+  //   id: "gpt-4.1-completions",
+  //   fn: composeOpenAICompletions({ model: "gpt-4.1" }),
+  //   host: "api.openai.com",
+  // },
 
   {
     id: "gpt-4.1-mini-completions",
@@ -102,6 +102,13 @@ async function main() {
 
   const prompts = Array.from({ length: ITERATIONS }).map(makePrompt);
 
+  for (const bm of benchmarks) run.set(bm.id, new Set());
+
+  const logInterval = setInterval(() => {
+    console.clear();
+    printSummary(run);
+  }, 1000);
+
   for await (const bm of benchmarks) {
     console.log(`starting ${bm.id}`);
 
@@ -113,43 +120,16 @@ async function main() {
     }
 
     for await (const prompt of prompts) {
-      if (!run.has(bm.id)) run.set(bm.id, new Set());
       const rec = new Recorder(bm, prompt);
       rec.begin();
       await Promise.all([bm.fn(rec), rec.doPing()]);
       rec.end();
 
       run.get(bm.id).add(rec);
-      console.log(
-        `${bm.id}:`
-          .padEnd(50, " ")
-          .concat(
-            `ttft: ${rec.ttft.toFixed(
-              1,
-            )}; ttft_w_network: ${rec.ttft_w_network.toFixed(
-              1,
-            )}; pingMs: ${rec.pingMs.toFixed(1)}`,
-          ),
-      );
     }
   }
-
-  const rows = Array.from(run).map((entry) => aggregate(entry[0], entry[1]));
-  const data = [
-    ["Benchmark", "Count", "Mean (ms)", "Min (ms)", "Max (ms)", "SD (ms)"],
-    ...rows.map((r) => [
-      r.benchmark,
-      r.count,
-      r.ttft_mean_ms,
-      r.ttft_min_ms,
-      r.ttft_max_ms,
-      r.ttft_sd_ms,
-    ]),
-  ];
-
-  console.log("\nTTFT summary (ms) per benchmark");
-  const output = table(data);
-  console.log(output);
+  clearInterval(logInterval);
+  printSummary(run);
 }
 
 main();
@@ -161,6 +141,43 @@ function makePrompt() {
 // ========================================
 // Aggregations
 // ========================================
+function printSummary(run: RunMap) {
+  const rows = Array.from(run).map((entry) => aggregate(entry[0], entry[1]));
+  const summaryData = [
+    [
+      "Benchmark",
+      "Count",
+      "Mean",
+      "SD",
+
+      "Min",
+      "p25",
+      "Median",
+      "p75",
+      "p95",
+      "p99",
+      "Max",
+    ],
+    ...rows.map((r) => [
+      r.benchmark,
+      r.count,
+      fmt(r.ttft_mean_ms),
+      fmt(r.ttft_sd_ms),
+
+      fmt(r.ttft_pct.p0),
+      fmt(r.ttft_pct.p25),
+      fmt(r.ttft_pct.p50),
+      fmt(r.ttft_pct.p75),
+      fmt(r.ttft_pct.p95),
+      fmt(r.ttft_pct.p99),
+      fmt(r.ttft_pct.p100),
+    ]),
+  ];
+
+  const output = table(summaryData);
+  console.log(output);
+}
+
 function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
   const ttfts = Array.from(recorders)
     .map((r) => r.ttft)
@@ -169,22 +186,32 @@ function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
   const n = ttfts.length;
 
   const mean = n ? ss.mean(ttfts) : NaN;
-  const min = n ? ss.min(ttfts) : NaN;
-  const max = n ? ss.max(ttfts) : NaN;
-
-  // Sample standard deviation; undefined for n < 2 so guard it.
   const sd = n > 1 ? ss.sampleStandardDeviation(ttfts) : NaN;
-
-  const format = (x: number) => (Number.isFinite(x) ? Math.round(x) : NaN);
 
   return {
     benchmark: benchmarkId,
     count: n,
-    ttft_mean_ms: format(mean),
-    ttft_min_ms: format(min),
-    ttft_max_ms: format(max),
-    ttft_sd_ms: format(sd),
+    ttft_mean_ms: mean,
+    ttft_sd_ms: sd,
+
+    ttft_pct: percentiles(ttfts, [0, 0.25, 0.5, 0.75, 0.95, 0.99, 1]),
   };
+}
+
+function round(x: number) {
+  return Number.isFinite(x) ? Math.round(x) : NaN;
+}
+
+function fmt(x: number, digits = 1) {
+  return Number.isFinite(x) ? x.toFixed(digits) : NaN;
+}
+
+function percentiles(xs: number[], probs: number[]) {
+  if (!xs.length) return {};
+  const s = [...xs].sort((a, b) => a - b);
+  return Object.fromEntries(
+    probs.map((p) => [`p${p * 100}`, ss.quantileSorted(s, p)]),
+  );
 }
 
 // ========================================
@@ -277,3 +304,7 @@ async function pingHost(host: string) {
     console.error("Ping failed:", error);
   }
 }
+
+// ========================================
+// Printing
+// ========================================
