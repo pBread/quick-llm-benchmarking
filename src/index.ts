@@ -13,18 +13,26 @@ const WARMUP = true;
 
 const benchmarks: Benchmark[] = [
   {
+    id: "gpt-4.1-completions",
+    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
+    host: "api.openai.com",
+  },
+
+  {
     id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
     host: "api.openai.com",
   },
-  // {
-  //   id: "gpt-4o-mini-completions",
-  //   fn: composeOpenAICompletions({ model: "gpt-4o-mini" }),
-  // },
-  // {
-  //   id: "gpt-3.5-turbo-completions",
-  //   fn: composeOpenAICompletions({ model: "gpt-3.5-turbo" }),
-  // },
+  {
+    id: "gpt-4o-mini-completions",
+    fn: composeOpenAICompletions({ model: "gpt-4o-mini" }),
+    host: "api.openai.com",
+  },
+  {
+    id: "gpt-3.5-turbo-completions",
+    fn: composeOpenAICompletions({ model: "gpt-3.5-turbo" }),
+    host: "api.openai.com",
+  },
 ];
 
 const now = () => performance.now();
@@ -113,10 +121,14 @@ async function main() {
 
       run.get(bm.id).add(rec);
       console.log(
-        `${bm.id} end.`
+        `${bm.id}:`
           .padEnd(50, " ")
           .concat(
-            `ttft: ${rec.ttft}; ttft_w_network: ${rec.ttft_w_network}; pingMs: ${rec.pingMs}`,
+            `ttft: ${rec.ttft.toFixed(
+              1,
+            )}; ttft_w_network: ${rec.ttft_w_network.toFixed(
+              1,
+            )}; pingMs: ${rec.pingMs.toFixed(1)}`,
           ),
       );
     }
