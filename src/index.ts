@@ -3,21 +3,15 @@ import "dotenv/config";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
+import ping from "ping";
 import * as ss from "simple-statistics";
 import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
-import ping from "ping";
 
 const ITERATIONS = 5;
 const WARMUP = true;
 
 const benchmarks: Benchmark[] = [
-  // {
-  //   id: "gpt-4.1-completions",
-  //   fn: composeOpenAICompletions({ model: "gpt-4.1" }),
-  //   host: "api.openai.com",
-  // },
-
   {
     id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
@@ -39,6 +33,14 @@ const now = () => performance.now();
 
 class Recorder {
   constructor(public bm: Benchmark, public prompt: string) {}
+
+  failed = false;
+  error: any = null;
+  setError = (error: any) => {
+    this.error = error;
+    this.failed = true;
+    console.error(`benchmark (${this.bm.id}) error: `, error);
+  };
 
   startTime: Date;
 
@@ -180,6 +182,7 @@ function printSummary(run: RunMap) {
 
 function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
   const ttfts = Array.from(recorders)
+    .filter((r) => !r.failed)
     .map((r) => r.ttft)
     .filter((n) => Number.isFinite(n));
 
@@ -261,15 +264,19 @@ function composeOpenAIResponse(
   const client = makeOpenAIClient();
 
   const openAIResponse: Executor = async (rec) => {
-    const stream = await client.responses.create({
-      ...config,
-      stream: true,
-      input: [{ role: "user", content: rec.prompt }],
-    });
+    try {
+      const stream = await client.responses.create({
+        ...config,
+        stream: true,
+        input: [{ role: "user", content: rec.prompt }],
+      });
 
-    for await (const chunk of stream) {
-      if (chunk.type === "response.output_text.delta")
-        rec.addToken(chunk.delta);
+      for await (const chunk of stream) {
+        if (chunk.type === "response.output_text.delta")
+          rec.addToken(chunk.delta);
+      }
+    } catch (error) {
+      rec.setError(error);
     }
   };
 
