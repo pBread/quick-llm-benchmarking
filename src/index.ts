@@ -3,11 +3,12 @@ import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
 import PQueue from "p-queue";
-import ping from "ping";
 import * as ss from "simple-statistics";
 import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 import { makePrompt } from "./prompt.ts";
+import { Recorder } from "./recorder.ts";
+import type { Benchmark, Executor, RunMap } from "./types.ts";
 
 const ITERATIONS = 10;
 const WARMUP = true;
@@ -33,76 +34,6 @@ const benchmarks: Benchmark[] = [
     host: "api.openai.com",
   },
 ];
-
-const now = () => performance.now();
-
-class Recorder {
-  constructor(public bm: Benchmark, public prompt: string) {}
-
-  failed = false;
-  error: any = null;
-  setError = (error: any) => {
-    this.error = error;
-    this.failed = true;
-    console.error(`benchmark (${this.bm.id}) error: `, error);
-  };
-
-  startTime: Date;
-
-  beginAt?: number;
-  endAt?: number;
-  tokens: TokenItem[] = [];
-
-  firstTokenAt?: number;
-  lastTokenAt?: number;
-
-  get ttft() {
-    return this.ttft_w_network && this.ttft_w_network - this.pingMs;
-  }
-
-  get ttft_w_network() {
-    return this.firstTokenAt && this.beginAt
-      ? this.firstTokenAt - this.beginAt - this.pingMs
-      : NaN;
-  }
-  get tt_complete() {
-    return this.lastTokenAt && this.beginAt
-      ? this.lastTokenAt - this.beginAt
-      : NaN;
-  }
-
-  pingMs = 0;
-  doPing = async () => {
-    try {
-      const res = await ping.promise.probe(this.bm.host, { timeout: 5 });
-      if (res.alive && res.time !== "unknown") this.pingMs = res.time;
-    } catch (error) {}
-
-    if (!this.pingMs)
-      console.warn(
-        `ping failed on (${this.bm.host}). network latency will be included in benchmark`,
-      );
-
-    return this.pingMs;
-  };
-
-  begin = () => {
-    this.beginAt = now();
-    this.startTime = new Date();
-  };
-  end = () => {
-    this.endAt = now();
-    if (!this.tokens.length) return;
-    this.lastTokenAt = this.tokens[this.tokens.length - 1].createdAt;
-  };
-
-  addToken = (token: string | undefined | null) => {
-    if (!token) return;
-
-    if (!this.firstTokenAt) this.firstTokenAt = now();
-    this.tokens.push({ content: token, createdAt: now() });
-  };
-}
 
 async function main() {
   const run: RunMap = new Map();
@@ -244,25 +175,6 @@ function percentiles(xs: number[], probs: number[]) {
   return Object.fromEntries(
     probs.map((p) => [`p${p * 100}`, ss.quantileSorted(s, p)]),
   );
-}
-
-// ========================================
-// Types
-// ========================================
-type RunMap = Map<string, Set<Recorder>>;
-
-interface Benchmark {
-  id: string;
-  fn: Executor;
-  host: string; // api host to remove local network latency
-  queueKey?: string; // allows queues to be shared
-}
-
-type Executor = (rec: Recorder) => Promise<void>;
-
-interface TokenItem {
-  content: string;
-  createdAt: number;
 }
 
 // ========================================
