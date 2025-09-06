@@ -131,6 +131,7 @@ async function main() {
     }
   }
   clearInterval(logInterval);
+  console.clear();
   printSummary(run);
 }
 
