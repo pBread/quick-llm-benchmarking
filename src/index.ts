@@ -2,14 +2,19 @@ import "dotenv/config";
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
+import PQueue from "p-queue";
 import ping from "ping";
 import * as ss from "simple-statistics";
 import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 import { makePrompt } from "./prompt.ts";
 
-const ITERATIONS = 5;
+const ITERATIONS = 30;
 const WARMUP = true;
+
+// concurrency limit is applied to each queue.
+// by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
+const CONCURRENCY = 3;
 
 const benchmarks: Benchmark[] = [
   {
@@ -104,7 +109,26 @@ async function main() {
 
   const prompts = Array.from({ length: ITERATIONS }).map(makePrompt);
 
-  for (const bm of benchmarks) run.set(bm.id, new Set());
+  const queues = new Map<string, PQueue>();
+  for (const bm of benchmarks) {
+    run.set(bm.id, new Set());
+    queues.set(bm.queueKey ?? bm.id, new PQueue({ concurrency: CONCURRENCY }));
+  }
+
+  const scheduled: Promise<unknown>[] = [];
+
+  const runOne = async (bm: Benchmark, prompt: string) => {
+    const rec = new Recorder(bm, prompt);
+    rec.begin();
+    try {
+      await Promise.all([bm.fn(rec), rec.doPing()]);
+    } catch (err) {
+      rec.setError(err);
+    } finally {
+      rec.end();
+      run.get(bm.id).add(rec);
+    }
+  };
 
   const logInterval = setInterval(() => {
     console.clear();
@@ -112,24 +136,25 @@ async function main() {
   }, 1000);
 
   for await (const bm of benchmarks) {
-    console.log(`starting ${bm.id}`);
-
     if (WARMUP) {
       console.log(`warmup started`);
       const rec = new Recorder(bm, "Tell me a joke");
       await bm.fn(rec);
       console.log(`warmup complete`);
     }
+  }
 
-    for await (const prompt of prompts) {
-      const rec = new Recorder(bm, prompt);
-      rec.begin();
-      await Promise.all([bm.fn(rec), rec.doPing()]);
-      rec.end();
+  for await (const bm of benchmarks) {
+    console.log(`scheduling ${bm.id}`);
+    const q = queues.get(bm.id)!;
 
-      run.get(bm.id).add(rec);
+    for (const prompt of prompts) {
+      scheduled.push(q.add(() => runOne(bm, prompt)));
     }
   }
+
+  await Promise.allSettled(scheduled);
+
   clearInterval(logInterval);
   console.clear();
   printSummary(run);
@@ -219,6 +244,7 @@ interface Benchmark {
   id: string;
   fn: Executor;
   host: string; // api host to remove local network latency
+  queueKey?: string; // allows queues to be shared
 }
 
 type Executor = (rec: Recorder) => Promise<void>;
