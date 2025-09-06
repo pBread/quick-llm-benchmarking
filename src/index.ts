@@ -4,32 +4,34 @@ import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
 import PQueue from "p-queue";
 import { Agent, fetch as undiciFetch } from "undici";
+import { printSummary } from "./logging.ts";
 import { makePrompt } from "./prompt.ts";
 import { Recorder } from "./recorder.ts";
 import type { Benchmark, Executor, RunMap } from "./types.ts";
-import { printSummary } from "./logging.ts";
 
 const ITERATIONS = 10;
 const WARMUP = true;
 
-// concurrency limit is applied to each queue.
+// these parameters get applied to each queue, which allows you to rate limit for fast benchmarks or spread the benchmark run over an extended period of time
 // by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
-const CONCURRENCY = 1;
+const QUEUE_CONFIG: ConstructorParameters<typeof PQueue>[0] = {
+  concurrency: 1,
+};
 
 const benchmarks: Benchmark[] = [
+  {
+    id: "gpt-4.1-completions",
+    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
+    host: "api.openai.com",
+  },
   {
     id: "gpt-4.1-mini-completions",
     fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
     host: "api.openai.com",
   },
   {
-    id: "gpt-4o-mini-completions",
-    fn: composeOpenAICompletions({ model: "gpt-4o-mini" }),
-    host: "api.openai.com",
-  },
-  {
-    id: "gpt-3.5-turbo-completions",
-    fn: composeOpenAICompletions({ model: "gpt-3.5-turbo" }),
+    id: "gpt-4.1-nano-completions",
+    fn: composeOpenAICompletions({ model: "gpt-4.1-nano" }),
     host: "api.openai.com",
   },
 ];
@@ -42,7 +44,7 @@ async function main() {
   const queues = new Map<string, PQueue>();
   for (const bm of benchmarks) {
     run.set(bm.id, new Set());
-    queues.set(bm.queueKey ?? bm.id, new PQueue({ concurrency: CONCURRENCY }));
+    queues.set(bm.queueKey ?? bm.id, new PQueue(QUEUE_CONFIG));
   }
 
   const scheduled: Promise<unknown>[] = [];
