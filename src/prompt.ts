@@ -1,9 +1,6 @@
 import { faker } from "@faker-js/faker";
 
 export function makePrompt() {
-  // --- helpers ---
-  const pick = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
-  const n = () => faker.number.int({ min: 3, max: 10 });
   const nonce = () =>
     `[${faker.string.alphanumeric({ length: { min: 2, max: 15 } })}]`;
 
