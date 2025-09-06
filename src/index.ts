@@ -9,7 +9,7 @@ import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 import { makePrompt } from "./prompt.ts";
 
-const ITERATIONS = 30;
+const ITERATIONS = 3;
 const WARMUP = true;
 
 // concurrency limit is applied to each queue.
@@ -171,12 +171,12 @@ function printSummary(run: RunMap) {
     [
       "Benchmark",
       "Count",
-      "Mean",
-      "SD",
+      // "Mean",
+      // "SD",
 
       "Min",
       "p25",
-      "Median",
+      green("Median"),
       "p75",
       "p95",
       "p99",
@@ -185,12 +185,12 @@ function printSummary(run: RunMap) {
     ...rows.map((r) => [
       r.benchmark,
       r.count,
-      fmt(r.ttft_mean_ms),
-      fmt(r.ttft_sd_ms),
+      // fmt(r.ttft_mean_ms),
+      // fmt(r.ttft_sd_ms),
 
       fmt(r.ttft_pct.p0),
       fmt(r.ttft_pct.p25),
-      fmt(r.ttft_pct.p50),
+      green(fmt(r.ttft_pct.p50)),
       fmt(r.ttft_pct.p75),
       fmt(r.ttft_pct.p95),
       fmt(r.ttft_pct.p99),
@@ -200,6 +200,10 @@ function printSummary(run: RunMap) {
 
   const output = table(summaryData);
   console.log(output);
+}
+
+function green(str: string) {
+  return `\x1b[32m${str}\x1b[0m`;
 }
 
 function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
@@ -224,7 +228,7 @@ function aggregate(benchmarkId: string, recorders: Set<Recorder>) {
 }
 
 function fmt(x: number, digits = 1) {
-  return Number.isFinite(x) ? x.toFixed(digits) : NaN;
+  return `${Number.isFinite(x) ? x.toFixed(digits) : NaN}`;
 }
 
 function percentiles(xs: number[], probs: number[]) {
