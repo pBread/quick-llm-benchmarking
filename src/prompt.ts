@@ -44,8 +44,7 @@ export function makePrompt() {
     TEMPLATES[faker.number.int({ min: 0, max: TEMPLATES.length - 1 })];
   let prompt = fillTemplate(template);
 
-  prompt += `\n`;
-  prompt += `[${faker.string.alphanumeric({ length: { min: 2, max: 15 } })}]`;
+  prompt += `\t[${faker.string.alphanumeric({ length: { min: 2, max: 15 } })}]`;
 
   return prompt;
 }

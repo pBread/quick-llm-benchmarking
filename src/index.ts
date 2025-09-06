@@ -9,12 +9,12 @@ import { table } from "table";
 import { Agent, fetch as undiciFetch } from "undici";
 import { makePrompt } from "./prompt.ts";
 
-const ITERATIONS = 3;
+const ITERATIONS = 10;
 const WARMUP = true;
 
 // concurrency limit is applied to each queue.
 // by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
-const CONCURRENCY = 3;
+const CONCURRENCY = 1;
 
 const benchmarks: Benchmark[] = [
   {
@@ -127,26 +127,31 @@ async function main() {
     } finally {
       rec.end();
       run.get(bm.id).add(rec);
+
+      console.log(`${bm.id}: ${rec.ttft.toFixed(0)}ms`);
     }
   };
+
+  console.clear();
+  printSummary(run);
 
   const logInterval = setInterval(() => {
     console.clear();
     printSummary(run);
-  }, 1000);
+  }, 2000);
 
   for await (const bm of benchmarks) {
     if (WARMUP) {
-      console.log(`warmup started`);
+      console.log(`${bm.id}: warmup started`);
       const rec = new Recorder(bm, "Tell me a joke");
       await bm.fn(rec);
-      console.log(`warmup complete`);
+      console.log(`${bm.id}: warmup complete for benchmark`);
     }
   }
 
   for await (const bm of benchmarks) {
-    console.log(`scheduling ${bm.id}`);
-    const q = queues.get(bm.id)!;
+    console.log(`${bm.id}: scheduling`);
+    const q = queues.get(bm.queueKey ?? bm.id)!;
 
     for (const prompt of prompts) {
       scheduled.push(q.add(() => runOne(bm, prompt)));
@@ -182,20 +187,22 @@ function printSummary(run: RunMap) {
       "p99",
       "Max",
     ],
-    ...rows.map((r) => [
-      r.benchmark,
-      r.count,
-      // fmt(r.ttft_mean_ms),
-      // fmt(r.ttft_sd_ms),
+    ...rows
+      .sort((a, b) => a.ttft_pct.p50 - b.ttft_pct.p50)
+      .map((r) => [
+        r.benchmark,
+        r.count,
+        // fmt(r.ttft_mean_ms),
+        // fmt(r.ttft_sd_ms),
 
-      fmt(r.ttft_pct.p0),
-      fmt(r.ttft_pct.p25),
-      green(fmt(r.ttft_pct.p50)),
-      fmt(r.ttft_pct.p75),
-      fmt(r.ttft_pct.p95),
-      fmt(r.ttft_pct.p99),
-      fmt(r.ttft_pct.p100),
-    ]),
+        fmt(r.ttft_pct.p0),
+        fmt(r.ttft_pct.p25),
+        green(fmt(r.ttft_pct.p50)),
+        fmt(r.ttft_pct.p75),
+        fmt(r.ttft_pct.p95),
+        fmt(r.ttft_pct.p99),
+        fmt(r.ttft_pct.p100),
+      ]),
   ];
 
   const output = table(summaryData);
