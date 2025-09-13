@@ -18,7 +18,7 @@ export function printSummary(run: RunMap) {
       "p75",
       "p95",
       "p99",
-      "Max",
+      // "Max",
     ],
     ...rows
       .sort((a, b) => a.ttft_pct.p50 - b.ttft_pct.p50)
@@ -34,7 +34,7 @@ export function printSummary(run: RunMap) {
         fmt(r.ttft_pct.p75),
         fmt(r.ttft_pct.p95),
         fmt(r.ttft_pct.p99),
-        fmt(r.ttft_pct.p100),
+        // fmt(r.ttft_pct.p100),
       ]),
   ];
 
