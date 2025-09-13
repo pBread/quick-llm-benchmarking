@@ -139,7 +139,3 @@ async function main() {
   console.clear();
   printSummary(run);
 }
-
-// ========================================
-// Composers
-// ========================================
