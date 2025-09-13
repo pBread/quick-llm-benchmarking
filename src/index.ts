@@ -1,40 +1,76 @@
 import "dotenv/config";
 import OpenAI from "openai";
-import type { ChatCompletionCreateParamsStreaming } from "openai/resources/index.mjs";
-import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.mjs";
+import { ChatCompletionCreateParamsStreaming } from "openai/resources";
 import PQueue from "p-queue";
-import { Agent, fetch as undiciFetch } from "undici";
+import {
+  composeOpenAICompletions,
+  composeOpenAIResponse,
+} from "./composers.ts";
 import { printSummary } from "./logging.ts";
 import { makePrompt } from "./prompt.ts";
 import { Recorder } from "./recorder.ts";
-import type { Benchmark, Executor, RunMap } from "./types.ts";
+import type { Benchmark, RunMap } from "./types.ts";
 
-const ITERATIONS = 10;
+const ITERATIONS = 384;
 const WARMUP = true;
 
 // these parameters get applied to each queue, which allows you to rate limit for fast benchmarks or spread the benchmark run over an extended period of time
 // by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
 const QUEUE_CONFIG: ConstructorParameters<typeof PQueue>[0] = {
-  concurrency: 1,
+  concurrency: 3,
+  interval: 1000 * 10,
+  intervalCap: 1,
 };
 
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const benchmarks: Benchmark[] = [
-  {
-    id: "gpt-4.1-completions",
-    fn: composeOpenAICompletions({ model: "gpt-4.1" }),
-    host: "api.openai.com",
-  },
-  {
-    id: "gpt-4.1-mini-completions",
-    fn: composeOpenAICompletions({ model: "gpt-4.1-mini" }),
-    host: "api.openai.com",
-  },
-  {
-    id: "gpt-4.1-nano-completions",
-    fn: composeOpenAICompletions({ model: "gpt-4.1-nano" }),
-    host: "api.openai.com",
-  },
+  // {
+  //   id: "gpt-4.1-mini-completions",
+  //   host: "api.openai.com",
+  //   fn: async ({ prompt, addToken }) => {
+  //     const stream = await client.chat.completions.create({
+  //       model: "gpt-4.1-mini",
+  //       stream: true,
+  //       messages: [{ role: "user", content: prompt }],
+  //     });
+  //     for await (const chunk of stream) {
+  //       addToken(chunk.choices[0]?.delta?.content);
+  //     }
+  //   },
+  // },
 ];
+
+const params: Omit<
+  ChatCompletionCreateParamsStreaming,
+  "messages" | "stream"
+>[] = [
+  { model: "gpt-3.5-turbo" },
+
+  { model: "gpt-4o" },
+  { model: "gpt-4o-mini" },
+
+  { model: "gpt-4.1" },
+  { model: "gpt-4.1-mini" },
+  { model: "gpt-4.1-nano" },
+];
+
+for (const param of params)
+  benchmarks.push({
+    host: "api.openai.com",
+    id: `oai-${param.model}-completions-api`,
+    fn: composeOpenAICompletions(param),
+  });
+
+for (const param of params)
+  benchmarks.push({
+    host: "api.openai.com",
+    id: `oai-${param.model}-response-api`,
+    fn: composeOpenAIResponse({ model: param.model }),
+  });
+
+console.log("benchmarks", benchmarks);
+
+main();
 
 async function main() {
   const run: RunMap = new Map();
@@ -88,6 +124,10 @@ async function main() {
     for (const prompt of prompts) {
       scheduled.push(q.add(() => runOne(bm, prompt)));
     }
+
+    await new Promise((resolve) =>
+      setTimeout(() => resolve(null), (10 * 1000) / benchmarks.length),
+    );
   }
 
   await Promise.allSettled(scheduled);
@@ -97,67 +137,6 @@ async function main() {
   printSummary(run);
 }
 
-main();
-
 // ========================================
 // Composers
 // ========================================
-function composeOpenAICompletions(
-  config: Omit<ChatCompletionCreateParamsStreaming, "messages" | "stream">,
-): Executor {
-  const client = makeOpenAIClient();
-
-  const openAICompletions: Executor = async (rec) => {
-    const stream = await client.chat.completions.create({
-      ...config,
-      stream: true,
-      messages: [{ role: "user", content: rec.prompt }],
-    });
-
-    for await (const chunk of stream) {
-      rec.addToken(chunk.choices[0]?.delta?.content);
-    }
-  };
-
-  return openAICompletions;
-}
-
-function composeOpenAIResponse(
-  config: Omit<ResponseCreateParamsStreaming, "messages" | "stream">,
-): Executor {
-  const client = makeOpenAIClient();
-
-  const openAIResponse: Executor = async (rec) => {
-    try {
-      const stream = await client.responses.create({
-        ...config,
-        stream: true,
-        input: [{ role: "user", content: rec.prompt }],
-      });
-
-      for await (const chunk of stream) {
-        if (chunk.type === "response.output_text.delta")
-          rec.addToken(chunk.delta);
-      }
-    } catch (error) {
-      rec.setError(error);
-    }
-  };
-
-  return openAIResponse;
-}
-
-function makeOpenAIClient() {
-  const dispatcher = new Agent({
-    keepAliveTimeout: 30_000,
-    keepAliveMaxTimeout: 30_000,
-  });
-  const typedFetch: typeof fetch = undiciFetch as unknown as typeof fetch;
-
-  const client = new OpenAI({
-    maxRetries: 0,
-    fetch: (url, opts) => typedFetch(url, { ...opts, dispatcher }),
-  });
-
-  return client;
-}

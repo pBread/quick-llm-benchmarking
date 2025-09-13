@@ -39,7 +39,11 @@ export function printSummary(run: RunMap) {
   ];
 
   const output = table(summaryData);
-  console.log(output);
+  console.log(
+    output +
+      `\n values represent time-to-first-token (TTFT) in milliseconds\n\n`,
+  );
+  console.log("  ");
 }
 
 function green(str: string) {
