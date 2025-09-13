@@ -16,9 +16,11 @@ const WARMUP = true;
 
 // these parameters get applied to each queue, which allows you to rate limit for fast benchmarks or spread the benchmark run over an extended period of time
 // by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
+const INTERVAL = 10 * 1000;
+
 const QUEUE_CONFIG: ConstructorParameters<typeof PQueue>[0] = {
   concurrency: 3,
-  interval: 1000 * 10,
+  interval: INTERVAL,
   intervalCap: 1,
 };
 
@@ -106,7 +108,7 @@ async function main() {
   const logInterval = setInterval(() => {
     console.clear();
     printSummary(run);
-  }, 2000);
+  }, 1000);
 
   for await (const bm of benchmarks) {
     if (WARMUP) {
@@ -125,8 +127,9 @@ async function main() {
       scheduled.push(q.add(() => runOne(bm, prompt)));
     }
 
-    await new Promise((resolve) =>
-      setTimeout(() => resolve(null), (10 * 1000) / benchmarks.length),
+    await new Promise(
+      (resolve) =>
+        setTimeout(() => resolve(null), INTERVAL / benchmarks.length), // space out the benchmarks to maximize distribution over time
     );
   }
 
