@@ -1,11 +1,6 @@
 import "dotenv/config";
 import OpenAI from "openai";
-import { ChatCompletionCreateParamsStreaming } from "openai/resources";
 import PQueue from "p-queue";
-import {
-  composeOpenAICompletions,
-  composeOpenAIResponse,
-} from "./composers.ts";
 import { printSummary } from "./logging.ts";
 import { makePrompt } from "./prompt.ts";
 import { Recorder } from "./recorder.ts";
@@ -16,7 +11,7 @@ const WARMUP = true;
 
 // these parameters get applied to each queue, which allows you to rate limit for fast benchmarks or spread the benchmark run over an extended period of time
 // by default, each benchmark gets its own queue. define a queueKey on the benchmark to share a queue
-const INTERVAL = 10 * 1000;
+const INTERVAL = 3 * 1000;
 
 const QUEUE_CONFIG: ConstructorParameters<typeof PQueue>[0] = {
   concurrency: 3,
@@ -26,51 +21,21 @@ const QUEUE_CONFIG: ConstructorParameters<typeof PQueue>[0] = {
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const benchmarks: Benchmark[] = [
-  // {
-  //   id: "gpt-4.1-mini-completions",
-  //   host: "api.openai.com",
-  //   fn: async ({ prompt, addToken }) => {
-  //     const stream = await client.chat.completions.create({
-  //       model: "gpt-4.1-mini",
-  //       stream: true,
-  //       messages: [{ role: "user", content: prompt }],
-  //     });
-  //     for await (const chunk of stream) {
-  //       addToken(chunk.choices[0]?.delta?.content);
-  //     }
-  //   },
-  // },
-];
-
-const params: Omit<
-  ChatCompletionCreateParamsStreaming,
-  "messages" | "stream"
->[] = [
-  { model: "gpt-3.5-turbo" },
-
-  { model: "gpt-4o" },
-  { model: "gpt-4o-mini" },
-
-  { model: "gpt-4.1" },
-  { model: "gpt-4.1-mini" },
-  { model: "gpt-4.1-nano" },
-];
-
-for (const param of params)
-  benchmarks.push({
+  {
+    id: "gpt-4.1-nano-completions",
     host: "api.openai.com",
-    id: `oai-${param.model}-completions-api`,
-    fn: composeOpenAICompletions(param),
-  });
-
-for (const param of params)
-  benchmarks.push({
-    host: "api.openai.com",
-    id: `oai-${param.model}-response-api`,
-    fn: composeOpenAIResponse({ model: param.model }),
-  });
-
-console.log("benchmarks", benchmarks);
+    fn: async ({ prompt, addToken }) => {
+      const stream = await client.chat.completions.create({
+        model: "gpt-4.1-nano",
+        stream: true,
+        messages: [{ role: "user", content: prompt }],
+      });
+      for await (const chunk of stream) {
+        addToken(chunk.choices[0]?.delta?.content);
+      }
+    },
+  },
+];
 
 main();
 
