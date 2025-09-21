@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
+    "allowJs": true,
     "checkJs": true,
+
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2022"],
@@ -11,12 +13,12 @@
     "resolveJsonModule": true,
     "rootDir": ".",
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
     "target": "es6",
 
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
   "exclude": ["node_modules", "dist"],
-  "include": ["src/**/*"]
+  "include": ["app.js", "config.js", "src/**/*"]
 }
