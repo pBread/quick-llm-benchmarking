@@ -2,19 +2,35 @@ import { faker } from "@faker-js/faker";
 import { randomBytes } from "crypto";
 
 const TEMPLATES: string[] = [
-  `Pretend you are chatting with a friend. Start by greeting me, then naturally bring up that ${name()} suggested we grab a bite to eat when you're in ${country()}. You've heard they have great some ${food()} there.`,
+  "Pretend you are chatting with a friend. Start by greeting me, then naturally bring up that {name} suggested we grab a bite to eat when you're in {country}. You've heard they have great some {food} there.",
 ];
 
 export function generatePrompt(): string {
   const now = new Date().toISOString();
 
-  const system = `This conversation (id ${id()}, generated at ${now}) is unique. Keep it casual, like normal spoken conversation.`;
+  const header = `This conversation (id ${id()}, generated at ${now}) is unique.\n\nKeep it casual, like normal spoken conversation.`;
+  const template = pick(TEMPLATES);
+  const body = render(template);
 
-  return `\
-This conversation (id ${id()}, generated at ${now}) is unique.
+  return `${header}\n\n${body}`;
+}
 
+function render(template: string) {
+  const generators: Record<string, () => string> = { country, food, name };
 
-Keep it casual, like normal spoken conversation.`;
+  let rendered = template.replace(
+    /\{([a-zA-Z0-9_.-]+)\}/g,
+    (_: any, key: string) => {
+      if (key in generators) {
+        const gen = generators[key] as () => string;
+        return gen();
+      }
+
+      return `{${key}}`;
+    },
+  );
+
+  return rendered;
 }
 
 function country() {

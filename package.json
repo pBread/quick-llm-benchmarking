@@ -4,7 +4,7 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "start": "tsx src/index.ts"
+    "start": "tsx app.js"
   },
   "dependencies": {
     "@faker-js/faker": "^9.9.0",
