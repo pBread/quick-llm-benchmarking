@@ -19,7 +19,7 @@ const TEMPLATES: string[] = [
 export function generatePrompt(): string {
   const now = new Date().toISOString();
 
-  const header = `This conversation (id ${id()}, generated at ${now}) is unique.`;
+  const header = `This conversation (id ${id()}), the current date is ${now}).`;
   const template = pick(TEMPLATES);
   const rendered = render(template);
   const body = addTypos(rendered);

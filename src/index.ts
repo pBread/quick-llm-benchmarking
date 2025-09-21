@@ -1,7 +1,7 @@
 import { generatePrompt } from "./generate-prompt.ts";
 
 const DEFAULTS = {
-  generatePrompt: generatePrompt,
+  generatePrompt,
   prompts: [],
   sampleSize: 384,
 
