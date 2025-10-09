@@ -14,7 +14,7 @@ const DEFAULTS = {
     interval: 1000,
   },
 
-  percentiles: [0, 0.25, 0.5, 0.75, 0.95, 0.99],
+  percentiles: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
 } satisfies Required<ExperimentOptions>;
 
 // ======================================== Experiment Level
