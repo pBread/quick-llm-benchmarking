@@ -6,7 +6,7 @@ const DEFAULTS = {
   prompts: [],
   sampleSize: 384,
 
-  scenarioRetries: 0.01, // 1%
+  scenarioRetries: 0.01, // 1% of sample size
 
   perScenarioQueueConfig: {
     concurrency: 10,
