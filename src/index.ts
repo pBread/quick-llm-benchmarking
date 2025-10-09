@@ -8,7 +8,7 @@ const DEFAULTS = {
 
   scenarioRetries: 0.01, // 1% of sample size
 
-  perScenarioQueueConfig: {
+  queueConfig: {
     concurrency: 10,
     intervalCap: 1,
     interval: 1000,
@@ -22,7 +22,7 @@ export class Experiment {
   generatePrompt: () => string;
 
   percentiles: number[];
-  perScenarioQueueConfig: QueueConfig;
+  queueConfig: QueueConfig;
   prompts: string[];
   sampleSize: number;
   status: ExperimentStatus = "new";
@@ -43,7 +43,7 @@ export class Experiment {
 
     this.#scenarioRetries = cfg.scenarioRetries;
     this.percentiles = cfg.percentiles;
-    this.perScenarioQueueConfig = cfg.perScenarioQueueConfig;
+    this.queueConfig = cfg.queueConfig;
     this.prompts = cfg.prompts;
     this.sampleSize = cfg.sampleSize;
   }
@@ -52,12 +52,12 @@ export class Experiment {
 }
 
 interface ExperimentOptions {
-  generatePrompt?: () => string; // not called unless prompts are undefined
-  prompts?: string[]; // if sample > prompts.length then prompts will be looped back
+  generatePrompt?: () => string; // called when no prompts are given
+  prompts?: string[]; // if sampleSize > prompts.length then prompts will be reused
   sampleSize?: number;
   scenarioRetries?: number; // pct or number; failures (not including warmup) per scenario before abort.
 
-  perScenarioQueueConfig?: QueueConfig; // per scenario queue
+  queueConfig?: QueueConfig; // per scenario queue
 
   percentiles?: number[];
 }
@@ -74,9 +74,7 @@ type ExperimentStatus =
 
 // ======================================== Sample Level
 
-// ========================================
-// Type Helpers
-// ========================================
+// ======================================== Type Helpers
 type QueueConfig = ConstructorParameters<typeof PQueue>[0];
 
 // ======================================== Other Utilities
