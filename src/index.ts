@@ -78,6 +78,7 @@ type ExperimentStatus =
 type QueueConfig = ConstructorParameters<typeof PQueue>[0];
 
 // ======================================== Other Utilities
+/** Removes properties with undefined values */
 function cleanObject<T extends Record<string, any>>(obj: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(obj).filter(([_, value]) => value !== undefined)
