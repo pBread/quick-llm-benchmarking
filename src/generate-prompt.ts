@@ -1,3 +1,3 @@
-export function generatePrompt() {
+export function defaultPromptGenerator() {
   return "tell me a joke";
 }

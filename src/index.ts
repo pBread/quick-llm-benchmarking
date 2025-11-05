@@ -1,8 +1,8 @@
 import PQueue from "p-queue";
-import { generatePrompt } from "./generate-prompt.ts";
+import { defaultPromptGenerator } from "./generate-prompt.ts";
 
 const DEFAULTS = {
-  generatePrompt,
+  generatePrompt: defaultPromptGenerator,
   prompts: [],
   sampleSize: 384,
 
